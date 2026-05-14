@@ -43,6 +43,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     const avatarLocalPath = req.files?.avatar[0]?.path;
     const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    console.log("files:", req.files);
 
     if(!avatarLocalPath){
         throw new ApiError(400, "Avatar file is required");
@@ -52,7 +53,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
     if(!avatar){
-        throw new ApiError(400, "Avatar file is required");
+        throw new ApiError(500, "Avatar upload failed. Please check Cloudinary configuration and file path.");
     }
 
     const user = await User.create({
@@ -79,12 +80,12 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async(req, res) => {
     const {email, username, password} = req.body;
 
-    if(!username || !email){
+    if(!(username || email)){
         throw new ApiError(400, "username or email is required")
     }
 
     const user = await User.findOne({
-        $or:[{usrname},{email}]
+        $or: [{ username },{ email }]
     })
 
     if(!user){
@@ -114,7 +115,24 @@ const loginUser = asyncHandler(async(req, res) => {
 })
 
 const logoutUser = asyncHandler(async(req, res) => {
-    
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                refreshToken: undefined
+            }
+        },
+        {
+            new: true
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res.status(200).clearCookie("accessToken", options).clearCookie("refreshToken", options).json(new ApiResponse(200, {}, "User logged Out"))
 })
 
-export {registerUser, loginUser};
+export {registerUser, loginUser, logoutUser};
